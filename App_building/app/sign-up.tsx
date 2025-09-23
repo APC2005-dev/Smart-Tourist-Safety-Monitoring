@@ -1,3 +1,260 @@
+import { useSignUp } from '@clerk/clerk-expo';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+
+export default function SignUpScreen() {
+  const { signUp, isLoaded, setActive } = useSignUp();
+  const router = useRouter();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleSignUp = async () => {
+    if (!isLoaded) return;
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      await signUp.create({
+        emailAddress: email,
+        password,
+      });
+
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+      setPendingVerification(true);
+    } catch (err: any) {
+      console.log(JSON.stringify(err, null, 2));
+      setError(err.errors?.[0]?.message || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    if (!isLoaded) return;
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      const completeSignUp = await signUp.attemptEmailAddressVerification({
+        code,
+      });
+
+      if (completeSignUp.status === 'complete') {
+        await setActive({ session: completeSignUp.createdSessionId });
+        // Redirect to profile form for new users
+        router.replace('/profile-form');
+      } else {
+        setError('Verification failed. Please try again.');
+      }
+    } catch (err: any) {
+      console.log(JSON.stringify(err, null, 2));
+      setError(err.errors?.[0]?.message || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <StatusBar barStyle="light-content" backgroundColor="#0f0f23" />
+      <LinearGradient
+        colors={['#0f0f23', '#1a1a2e', '#16213e']}
+        style={styles.container}
+      >
+        {/* Custom Header */}
+        <View style={styles.customHeader}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#ffffff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>
+            {pendingVerification ? 'Verify Email' : 'Sign Up'}
+          </Text>
+          <View style={styles.headerSpacer} />
+        </View>
+
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoid}
+        >
+          <ScrollView contentContainerStyle={styles.scrollContainer}>
+            <View style={styles.header}>
+              {!pendingVerification && (
+                <View style={styles.logoContainer}>
+                  <View style={styles.logo}>
+                    <Ionicons name="person-add" size={32} color="#00d4ff" />
+                  </View>
+                </View>
+              )}
+              <Text style={styles.title}>
+                {pendingVerification ? 'Check Your Email' : 'Create Account'}
+              </Text>
+              <Text style={styles.subtitle}>
+                {pendingVerification 
+                  ? 'Enter the verification code we sent you' 
+                  : 'Join us and get started today'
+                }
+              </Text>
+            </View>
+
+            <View style={styles.form}>
+            {!pendingVerification ? (
+              <>
+                <View style={styles.inputContainer}>
+                  <Ionicons name="mail-outline" size={20} color="#00d4ff" style={styles.inputIcon} />
+                  <TextInput
+                    placeholder="Email address"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    style={styles.input}
+                    placeholderTextColor="#6b7280"
+                  />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Ionicons name="lock-closed-outline" size={20} color="#00d4ff" style={styles.inputIcon} />
+                  <TextInput
+                    placeholder="Password"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    autoComplete="password"
+                    style={[styles.input, styles.passwordInput]}
+                    placeholderTextColor="#6b7280"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeIcon}
+                  >
+                    <Ionicons 
+                      name={showPassword ? "eye-outline" : "eye-off-outline"} 
+                      size={20} 
+                      color="#00d4ff" 
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.passwordRequirements}>
+                  <Text style={styles.requirementsTitle}>Password requirements:</Text>
+                  <View style={styles.requirementItem}>
+                    <Ionicons 
+                      name={password.length >= 8 ? "checkmark-circle" : "ellipse-outline"} 
+                      size={16} 
+                      color={password.length >= 8 ? "#4ade80" : "#6b7280"} 
+                    />
+                    <Text style={[styles.requirementText, password.length >= 8 && styles.requirementMet]}>
+                      At least 8 characters
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.signUpButton, loading && styles.disabledButton]}
+                  onPress={handleSignUp}
+                  disabled={loading || !email || !password}
+                >
+                  <Text style={styles.signUpButtonText}>
+                    {loading ? 'Creating Account...' : 'Create Account'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.signInLink}
+                  onPress={() => router.push('/sign-in')}
+                >
+                  <Text style={styles.signInText}>
+                    Already have an account? <Text style={styles.signInTextBold}>Sign In</Text>
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <View style={styles.verificationContainer}>
+                  <View style={styles.emailSentIcon}>
+                    <Ionicons name="mail" size={48} color="#00d4ff" />
+                  </View>
+                  <Text style={styles.verificationText}>
+                    We've sent a 6-digit verification code to
+                  </Text>
+                  <Text style={styles.emailText}>{email}</Text>
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Ionicons name="key-outline" size={20} color="#00d4ff" style={styles.inputIcon} />
+                  <TextInput
+                    placeholder="Enter 6-digit code"
+                    value={code}
+                    onChangeText={setCode}
+                    keyboardType="numeric"
+                    maxLength={6}
+                    style={styles.input}
+                    placeholderTextColor="#6b7280"
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.verifyButton, loading && styles.disabledButton]}
+                  onPress={handleVerify}
+                  disabled={loading || code.length < 6}
+                >
+                  <Text style={styles.verifyButtonText}>
+                    {loading ? 'Verifying...' : 'Verify Email'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.resendLink}
+                  onPress={() => {
+                    signUp?.prepareEmailAddressVerification({ strategy: 'email_code' });
+                  }}
+                >
+                  <Text style={styles.resendText}>
+                    Didn't receive the code? <Text style={styles.resendTextBold}>Resend</Text>
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {error ? (
+              <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle-outline" size={16} color="#ff6b6b" />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
+    </>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -233,258 +490,4 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flex: 1,
   },
-});import { useSignUp } from '@clerk/clerk-expo';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
-} from 'react-native';
-
-export default function SignUpScreen() {
-  const { signUp, isLoaded, setActive } = useSignUp();
-  const router = useRouter();
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [code, setCode] = useState('');
-  const [pendingVerification, setPendingVerification] = useState(false);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-
-  const handleSignUp = async () => {
-    if (!isLoaded) return;
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      await signUp.create({
-        emailAddress: email,
-        password,
-      });
-
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
-      setPendingVerification(true);
-    } catch (err: any) {
-      console.log(JSON.stringify(err, null, 2));
-      setError(err.errors?.[0]?.message || err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerify = async () => {
-    if (!isLoaded) return;
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      const completeSignUp = await signUp.attemptEmailAddressVerification({
-        code,
-      });
-
-      if (completeSignUp.status === 'complete') {
-        await setActive({ session: completeSignUp.createdSessionId });
-        router.replace('/');
-      } else {
-        setError('Verification failed. Please try again.');
-      }
-    } catch (err: any) {
-      console.log(JSON.stringify(err, null, 2));
-      setError(err.errors?.[0]?.message || err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <>
-      <StatusBar barStyle="light-content" backgroundColor="#0f0f23" />
-      <LinearGradient
-        colors={['#0f0f23', '#1a1a2e', '#16213e']}
-        style={styles.container}
-      >
-        {/* Custom Header */}
-        <View style={styles.customHeader}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#ffffff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            {pendingVerification ? 'Verify Email' : 'Sign Up'}
-          </Text>
-          <View style={styles.headerSpacer} />
-        </View>
-
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardAvoid}
-        >
-          <ScrollView contentContainerStyle={styles.scrollContainer}>
-            <View style={styles.header}>
-              {!pendingVerification && (
-                <View style={styles.logoContainer}>
-                  <View style={styles.logo}>
-                    <Ionicons name="person-add" size={32} color="#00d4ff" />
-                  </View>
-                </View>
-              )}
-              <Text style={styles.title}>
-                {pendingVerification ? 'Check Your Email' : 'Create Account'}
-              </Text>
-              <Text style={styles.subtitle}>
-                {pendingVerification 
-                  ? 'Enter the verification code we sent you' 
-                  : 'Join us and get started today'
-                }
-              </Text>
-            </View>
-
-            <View style={styles.form}>
-            {!pendingVerification ? (
-              <>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="mail-outline" size={20} color="#00d4ff" style={styles.inputIcon} />
-                  <TextInput
-                    placeholder="Email address"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoComplete="email"
-                    style={styles.input}
-                    placeholderTextColor="#6b7280"
-                  />
-                </View>
-
-                <View style={styles.inputContainer}>
-                  <Ionicons name="lock-closed-outline" size={20} color="#00d4ff" style={styles.inputIcon} />
-                  <TextInput
-                    placeholder="Password"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                    autoComplete="password"
-                    style={[styles.input, styles.passwordInput]}
-                    placeholderTextColor="#6b7280"
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
-                    style={styles.eyeIcon}
-                  >
-                    <Ionicons 
-                      name={showPassword ? "eye-outline" : "eye-off-outline"} 
-                      size={20} 
-                      color="#00d4ff" 
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.passwordRequirements}>
-                  <Text style={styles.requirementsTitle}>Password requirements:</Text>
-                  <View style={styles.requirementItem}>
-                    <Ionicons 
-                      name={password.length >= 8 ? "checkmark-circle" : "ellipse-outline"} 
-                      size={16} 
-                      color={password.length >= 8 ? "#4ade80" : "#6b7280"} 
-                    />
-                    <Text style={[styles.requirementText, password.length >= 8 && styles.requirementMet]}>
-                      At least 8 characters
-                    </Text>
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.signUpButton, loading && styles.disabledButton]}
-                  onPress={handleSignUp}
-                  disabled={loading || !email || !password}
-                >
-                  <Text style={styles.signUpButtonText}>
-                    {loading ? 'Creating Account...' : 'Create Account'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.signInLink}
-                  onPress={() => router.push('/sign-in')}
-                >
-                  <Text style={styles.signInText}>
-                    Already have an account? <Text style={styles.signInTextBold}>Sign In</Text>
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <View style={styles.verificationContainer}>
-                  <View style={styles.emailSentIcon}>
-                    <Ionicons name="mail" size={48} color="#00d4ff" />
-                  </View>
-                  <Text style={styles.verificationText}>
-                    We've sent a 6-digit verification code to
-                  </Text>
-                  <Text style={styles.emailText}>{email}</Text>
-                </View>
-
-                <View style={styles.inputContainer}>
-                  <Ionicons name="key-outline" size={20} color="#00d4ff" style={styles.inputIcon} />
-                  <TextInput
-                    placeholder="Enter 6-digit code"
-                    value={code}
-                    onChangeText={setCode}
-                    keyboardType="numeric"
-                    maxLength={6}
-                    style={styles.input}
-                    placeholderTextColor="#6b7280"
-                  />
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.verifyButton, loading && styles.disabledButton]}
-                  onPress={handleVerify}
-                  disabled={loading || code.length < 6}
-                >
-                  <Text style={styles.verifyButtonText}>
-                    {loading ? 'Verifying...' : 'Verify Email'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.resendLink}
-                  onPress={() => {
-                    signUp?.prepareEmailAddressVerification({ strategy: 'email_code' });
-                  }}
-                >
-                  <Text style={styles.resendText}>
-                    Didn't receive the code? <Text style={styles.resendTextBold}>Resend</Text>
-                  </Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {error ? (
-              <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle-outline" size={16} color="#ff6b6b" />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </LinearGradient>
-    </>
-  );
-}
+});
